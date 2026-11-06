@@ -1,0 +1,28 @@
+<div class="card">
+    <div class="img-responsive img-responsive-21x9 card-img-top" 
+         style="background-image: url('{% if car.image_url %}{{ car.image_url }} \
+         {% else %}https://via.placeholder.com/800x400?text=Фото+нет{% endif %}');">
+    </div>
+    <div class="card-body">
+        <h3 class="card-title">{{ car.brand.name }} {{ car.model_name }}</h3>
+        <p class="text-secondary">
+            Год: {{ car.year }} <br>
+            Состояние: {% if car.is_used %}С пробегом{% else %}Новый{% endif %}
+        </p>
+        <div class="h2 mb-0 text-green">{{ car.price }} ₽</div>
+    </div>
+    <div class="card-footer d-flex align-items-center">
+        <!-- Ссылка на будущую страницу с деталями авто -->
+        <a href="{% url 'car_detail' car.id %}" class="btn btn-primary">
+            Подробнее
+        </a>
+        <button class="btn btn-icon border-0 bg-transparent text-secondary ms-auto btn-favorite" 
+                data-car-id="{{ car.id }}"
+                title="В избранное">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" 
+            stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428m0 0a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572" />
+        </svg>
+        </button>
+    </div>
+</div>

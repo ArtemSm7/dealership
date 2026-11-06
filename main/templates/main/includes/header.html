@@ -1,0 +1,73 @@
+<header class="navbar navbar-expand-md navbar-light d-print-none">
+    <div class="container-xl">
+        <h1 class="navbar-brand navbar-brand-autodark 
+                   d-none-navbar-horizontal pe-0 pe-md-3">
+            <a href="{% url 'catalog' %}">
+                <span class="text-primary">Auto</span>Motors
+            </a>
+        </h1>
+
+        <!-- Навигация: flex-wrap и gap для красивого переноса на мобильных -->
+        <div class="navbar-nav flex-row flex-wrap align-items-center gap-2 gap-md-3 order-md-last mt-2 mt-md-0">
+        
+        <!-- Навигация авторизации -->
+            {% if request.user.is_authenticated %}
+                {% if request.user.is_staff %}
+                <div class="nav-item">
+                    <a href="{% url 'dashboard' %}" class="nav-link text-primary fw-bold px-0">
+                        Заявки
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="{% url 'control_center' %}" class="nav-link text-primary fw-bold px-0">
+                        Управление авто
+                    </a>
+                </div>
+                {% endif %}
+                <div class="nav-item">
+                    <form action="{% url 'logout' %}" method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="nav-link px-0 border-0 bg-transparent text-secondary" style="cursor: pointer;">
+                            Выйти
+                        </button>
+                    </form>
+                </div>
+            {% else %}
+                <div class="nav-item">
+                    <a href="{% url 'login' %}" class="nav-link text-secondary px-0">
+                        Войти
+                    </a>
+                </div>
+            {% endif %}
+            
+            <!-- Переключатель темы -->
+            <div class="nav-item d-flex align-items-center">
+                <button class="nav-link px-0 border-0 bg-transparent" 
+                        id="theme-toggle" 
+                        title="Сменить тему" 
+                        style="cursor: pointer;">
+                </button>
+            </div>
+            
+            <!-- Избранное -->
+            <div class="nav-item">
+                <a href="#" id="favorites-link" class="nav-link d-flex align-items-center px-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" 
+                         class="icon me-1 text-danger" 
+                         width="24" height="24" viewBox="0 0 24 24" 
+                         stroke-width="2" stroke="currentColor" 
+                         fill="none" stroke-linecap="round" 
+                         stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                        <path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428
+                                 m0 0a5 5 0 1 1 7.5 -6.566
+                                 a5 5 0 1 1 7.5 6.572" />
+                    </svg>
+                    <!-- Слово скрывается на телефонах, остается на ПК -->
+                    <span class="d-none d-sm-inline">Избранное</span>
+                    <span id="fav-count" class="badge bg-red text-white ms-1">0</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</header>

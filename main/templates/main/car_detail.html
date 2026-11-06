@@ -1,0 +1,112 @@
+{% extends 'main/base.html' %}
+
+{% block content %}
+<div class="page-header d-print-none mb-4">
+    <div class="row align-items-center">
+        <div class="col">
+            <!-- Кнопка Назад -->
+            <a href="{% url 'catalog' %}" class="btn btn-outline-secondary mb-3">
+                ⬅ Назад в каталог
+            </a>
+            <h2 class="page-title">
+                {{ car.brand.name }} {{ car.model_name }} ({{ car.year }})
+            </h2>
+        </div>
+    </div>
+</div>
+
+<div class="row row-cards">
+    <!-- Левая колонка: Фото -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-img-top img-responsive img-responsive-16x9" 
+                 style="background-image: url('{% if car.image_url %}{{ car.image_url }}{% else %}https://via.placeholder.com/800x400?text=Фото+нет{% endif %}');">
+            </div>
+        </div>
+    </div>
+    
+    <!-- Правая колонка: Информация и форма заявки -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Оставить заявку на покупку</h3>
+            </div>
+            <div class="card-body">
+                <p class="text-secondary">Итоговая цена: <span class="h2 text-green">{{ car.price }} ₽</span></p>
+                
+                {% if car.is_available %}
+                <form id="order-form" data-car-id="{{ car.id }}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Ваше имя</label>
+                        <input type="text" class="form-control" id="client_name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Номер телефона</label>
+                        <input type="text" class="form-control" id="client_phone" required placeholder="+7 XXX XXX XX XX">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Отправить заявку</button>
+                </form>
+                {% else %}
+                <div class="alert alert-warning">
+                    Данный автомобиль уже забронирован или продан.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const form = document.getElementById('order-form');
+
+    form.addEventListener('submit', async function(event) {
+        event.preventDefault(); 
+
+        const carId = this.getAttribute('data-car-id');
+        const name = document.getElementById('client_name').value;
+        const phoneInput = document.getElementById('client_phone');
+        const phone = phoneInput.value;
+        
+        const digitsOnly = phone.replace(/\D/g, '');
+        if (digitsOnly.length < 11){
+            showToast('Введите корректный номер телефона.', true);
+            phoneInput.classList.add('is-invalid');
+            return;
+        }
+        phoneInput.classList.remove('is-invalid');
+
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        try {
+            const response = await fetch('/api/orders/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    car: carId,               
+                    client_name: name,
+                    client_phone: phone
+                })
+            });
+
+            const data = await response.json();
+
+            
+            if (response.ok) {
+                showToast('Заявка отправлена.');
+                form.reset();
+            } else {
+                console.error("Сервер отклонил данные:", data);
+                showToast('Произошла ошибка при отправке. Проверьте данные.', true);
+            }
+        } catch (error) {
+            console.error('Ошибка сети:', error);
+            showToast('Ошибка соединения с сервером', true);
+        }
+    });
+</script>
+
+{% endblock %}

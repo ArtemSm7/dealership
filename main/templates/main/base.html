@@ -1,0 +1,140 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Автосалон</title>
+    <link rel="stylesheet" href="{% static 'main/css/tabler.min.css' %}">
+</head>
+<body>
+    <div class="page">
+        {% include 'main/includes/header.html' %}
+        <div class="page-wrapper">
+            <div class="page-body">
+                <div class="container-xl">
+                    {% block content %}
+                    {% endblock %}
+                </div>
+            </div>
+            {% include 'main/includes/footer.html'%}
+        </div>
+    </div>
+    <!-- Контейнер для уведомлений (Toast) -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1055;">
+        <div id="success-toast" class="toast align-items-center text-bg-success border-0" 
+             role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body" id="toast-msg">
+                    Успешно!
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" 
+                        data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{% static 'main/js/tabler.min.js' %}"></script>
+
+    <script>
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const iconMoon = 
+            '<svg xmlns="http://www.w3.org/2000/svg" class="icon" ' +
+            'width="24" height="24" viewBox="0 0 24 24" stroke-width="2" ' +
+            'stroke="currentColor" fill="none" stroke-linecap="round" ' +
+            'stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" ' +
+            'fill="none"/><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 ' +
+            '0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" /></svg>';
+            
+        const iconSun = 
+            '<svg xmlns="http://www.w3.org/2000/svg" class="icon" ' +
+            'width="24" height="24" viewBox="0 0 24 24" stroke-width="2" ' +
+            'stroke="currentColor" fill="none" stroke-linecap="round" ' +
+            'stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" ' +
+            'fill="none"/><path d="M12 12m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 ' +
+            '-8 0" /><path d="M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 ' +
+            '.7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7" /></svg>';
+
+        function setTheme(themeName) {
+            document.body.setAttribute('data-bs-theme', themeName);
+            localStorage.setItem('theme', themeName);
+            themeToggleBtn.innerHTML = themeName === 'dark' ? iconSun : iconMoon;
+        }
+
+        // Функция показа уведомления
+        function showToast(message, isError = false) {
+            document.getElementById('toast-msg').innerText = message;
+            const toastEl = document.getElementById('success-toast');
+            toastEl.style.display = 'block';
+
+            if (isError) {
+                toastEl.classList.remove('text-bg-success');
+                toastEl.classList.add('text-bg-danger');
+            } else {
+                toastEl.classList.remove('text-bg-danger');
+                toastEl.classList.add('text-bg-success');
+            }
+
+            toastEl.style.display = 'block';
+            setTimeout(() => {toastEl.classList.add('show');}, 10);
+            setTimeout(() => {
+                toastEl.classList.remove('show');
+                setTimeout(() => { toastEl.style.display = 'none'; }, 300);
+            }, 3000);
+        }
+
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        setTheme(savedTheme);
+
+        themeToggleBtn.addEventListener('click', () => {
+            const currentTheme = document.body.getAttribute('data-bs-theme');
+            setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+        });
+
+        function updateFavoritesCount() {
+            let favs = JSON.parse(localStorage.getItem('favorites')) || [];
+            document.getElementById('fav-count').innerText = favs.length;
+        }
+
+        // 1. ПЕРЕХОД НА СТРАНИЦУ ИЗБРАННОГО
+        document.getElementById('favorites-link').addEventListener('click', function(e) {
+            e.preventDefault();
+            let favs = JSON.parse(localStorage.getItem('favorites')) || [];
+            window.location.href = `/favorites/?ids=${favs.join(',')}`;
+        });
+
+        // 2. ЛОГИКА ДОБАВЛЕНИЯ В ИЗБРАННОЕ 
+        document.querySelectorAll('.btn-favorite').forEach(btn => {
+            let carId = btn.getAttribute('data-car-id');
+            let favs = JSON.parse(localStorage.getItem('favorites')) || [];
+
+            if(favs.includes(carId)) {
+                btn.classList.add('text-danger'); 
+                btn.querySelector('svg').setAttribute('fill', 'currentColor');
+            }
+
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                let favs = JSON.parse(localStorage.getItem('favorites')) || [];
+                let index = favs.indexOf(carId);
+                
+                if (index === -1) {
+                    favs.push(carId);
+                    this.classList.add('text-danger');
+                    this.querySelector('svg').setAttribute('fill', 'currentColor');
+                } else {
+                    favs.splice(index, 1);
+                    this.classList.remove('text-danger');
+                    this.querySelector('svg').setAttribute('fill', 'none');
+                }
+                
+                localStorage.setItem('favorites', JSON.stringify(favs));
+                updateFavoritesCount();
+            });
+        });
+
+        updateFavoritesCount();
+    </script>
+
+</body>
+</html>

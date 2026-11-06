@@ -1,0 +1,53 @@
+{% extends 'main/base.html' %}
+
+{% block content %}
+<div class="page-header d-print-none mb-4">
+    <div class="row align-items-center">
+        <div class="col">
+            <h2 class="page-title">
+                Каталог автомобилей
+            </h2>
+        </div>
+    </div>
+</div>
+
+<form method="GET" class="card mb-4 d-print-none">
+    <div class="card-body row g-2">
+        <div class="col-md-4">
+            <input type="text" name="search" class="form-control" placeholder="Поиск машины..." value="{{ current_search|default_if_none:'' }}">
+        </div>
+        <div class="col-md-3">
+            <select name="brand" class="form-select">
+                <option value="">Все марки</option>
+                {% for b in brands %}
+                <!-- Если ID марки совпадает с выбранным, оставляем select активным -->
+                <option value="{{ b.id }}" {% if current_brand == b.id|stringformat:"s" %}selected{% endif %}>{{ b.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select name="ordering" class="form-select">
+                <option value="">Без сортировки</option>
+                <option value="price" {% if current_ordering == 'price' %}selected{% endif %}>Сначала дешевые</option>
+                <option value="-price" {% if current_ordering == '-price' %}selected{% endif %}>Сначала дорогие</option>
+                <option value="-year" {% if current_ordering == '-year' %}selected{% endif %}>Сначала новые</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-primary w-100">Найти</button>
+        </div>
+    </div>
+</form>
+
+<div class="row row-cards">
+    {% for car in cars %}
+    <div class="col-sm-6 col-lg-4">
+        {% include 'main/includes/car_card.html' with car=car %}
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="alert alert-info">В каталоге пока нет доступных автомобилей.</div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

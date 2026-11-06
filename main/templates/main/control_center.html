@@ -1,0 +1,410 @@
+{% extends 'main/base.html' %}
+
+{% block content %}
+<div class="page-header d-print-none mb-4">
+    <div class="row align-items-center">
+        <div class="col">
+            <h2 class="page-title">Управление автопарком</h2>
+        </div>
+        <div class="col-auto ms-auto d-print-none">
+            <button class="btn btn-primary" id="btn-add-car">
+                + Добавить автомобиль
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Фильтрация API (Поиск, Бренд, Сортировка) -->
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-md-4">
+                <input type="text" id="search-input" class="form-control" placeholder="Поиск по модели...">
+            </div>
+            <div class="col-md-4">
+                <select id="filter-brand" class="form-select">
+                    <option value="">Все марки</option>
+                    <!-- Опции подгрузит скрипт -->
+                </select>
+            </div>
+            <div class="col-md-4">
+                <select id="sort-select" class="form-select">
+                    <option value="">Без сортировки</option>
+                    <option value="price">Сначала дешевые</option>
+                    <option value="-price">Сначала дорогие</option>
+                    <option value="-year">Сначала новые</option>
+                    <option value="year">Сначала старые</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Пустая таблица, куда JS рендерит машины -->
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Фото</th>
+                    <th>Марка и Модель</th>
+                    <th>Год</th>
+                    <th>Цена</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody id="cars-table-body">
+                <tr><td colspan="6" class="text-center text-secondary">Загрузка данных через API...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Модальное окно создания/редактирования -->
+<div class="modal modal-blur fade" id="car-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="car-form">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modal-title">Добавить авто</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="car-id">
+                    <div class="mb-3">
+                        <label class="form-label">Марка</label>
+                        <select id="brand-select" class="form-select" required></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Модель</label>
+                        <input type="text" id="model-name" class="form-control" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Год</label>
+                            <input type="number" id="car-year" class="form-control" required>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Цена</label>
+                            <input type="number" id="car-price" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Ссылка на фото (URL)</label>
+                        <input type="url" id="car-image" class="form-control" placeholder="Например: https://site.com/photo.jpg">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary w-100">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Окно подтверждения удаления -->
+<div class="modal modal-blur fade" id="delete-modal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <h5 class="modal-title mb-2">Удалить автомобиль?</h5>
+                <p class="text-secondary">Это действие отменить нельзя.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary me-auto" id="btn-cancel-delete">Отмена</button>
+                <button type="button" class="btn btn-danger" id="btn-confirm-delete">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const tableBody = document.getElementById('cars-table-body');
+    const searchInput = document.getElementById('search-input');
+
+    // Генератор строки таблицы
+    function getCarRowHTML(car) {
+        const img = car.image_url || 'https://via.placeholder.com/150?text=Нет';
+        return `
+            <td>${car.id}</td>
+            <td><div style="width: 60px; height: 40px; background: url('${img}') center/cover; border-radius: 4px;"></div></td>
+            <td><strong>${car.brand.name}</strong> ${car.model_name}</td>
+            <td>${car.year}</td>
+            <td>${car.price} ₽</td>
+            <td>
+                <div class="d-flex gap-2 flex-nowrap justify-content-start">
+                    <button class="btn btn-icon btn-outline-primary btn-sm btn-edit" data-id="${car.id}" title="Изменить">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-pencil" width="24" height="24" 
+                            viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                            <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"></path>
+                            <path d="M13.5 6.5l4 4"></path>
+                        </svg>
+                    </button>
+                    <button class="btn btn-icon btn-outline-danger btn-sm btn-delete" data-id="${car.id}" title="Удалить">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-trash" width="24" height="24" 
+                            viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                            <path d="M4 7l16 0"></path>
+                            <path d="M10 11l0 6"></path>
+                            <path d="M14 11l0 6"></path>
+                            <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"></path>
+                            <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"></path>
+                        </svg>
+                    </button>
+                </div>
+            </td>
+        `;
+    }
+
+    // 1. Загрузка данных
+    async function loadCars(searchQuery = '') {
+        tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-secondary">
+            Загрузка данных...
+        </td></tr>`;
+        
+        let url = '/api/cars/';
+        if (searchQuery) url += `?search=${encodeURIComponent(searchQuery)}`;
+
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Ошибка сети');
+            renderTable(await res.json());
+        } catch (err) {
+            tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">
+                Ошибка при загрузке данных с сервера
+            </td></tr>`;
+        }
+    }
+
+    // 2. Отрисовка таблицы
+    function renderTable(cars) {
+        tableBody.innerHTML = '';
+        if (cars.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="6" class="text-center">Машины не найдены</td></tr>';
+            return;
+        }
+        cars.forEach(car => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = getCarRowHTML(car);
+            tableBody.appendChild(tr);
+        });
+    }
+
+    // 3. Старт при открытии
+    async function loadCars() {
+        tableBody.innerHTML = '<tr><td colspan="6" class="text-center">Загрузка данных...</td></tr>';
+        
+        // Собираем все 3 параметра
+        const query = searchInput.value;
+        const brand = document.getElementById('filter-brand').value;
+        const ordering = document.getElementById('sort-select').value;
+        
+        // Формируем динамический URL
+        const params = new URLSearchParams();
+        if (query) params.append('search', query);
+        if (brand) params.append('brand', brand);
+        if (ordering) params.append('ordering', ordering);
+        
+        try {
+            const res = await fetch(`/api/cars/?${params.toString()}`);
+            if (!res.ok) throw new Error();
+            renderTable(await res.json());
+        } catch (err) {
+            tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Ошибка загрузки</td></tr>';
+        }
+    }
+
+    // 4. Живой поиск
+    let searchTimeout = null;
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => loadCars(e.target.value), 500);
+    });
+
+    // Фильтрация и сортировка при выборе из списка
+    document.getElementById('filter-brand').addEventListener('change', loadCars);
+    document.getElementById('sort-select').addEventListener('change', loadCars);
+
+    // Загрузка марок в фильтр при открытии страницы
+    async function initFilters() {
+        try {
+            const res = await fetch('/api/brands/');
+            const brands = await res.json();
+            const filterBrand = document.getElementById('filter-brand');
+            brands.forEach(b => {
+                filterBrand.insertAdjacentHTML('beforeend', `<option value="${b.id}">${b.name}</option>`);
+            });
+        } catch (err) {
+            console.error('Ошибка загрузки фильтров', err);
+        }
+        loadCars(); 
+    }
+    // Запускаем при открытии
+    initFilters();
+
+    // 5. Логика модального окна
+    const carModal = document.getElementById('car-modal');
+    const carForm = document.getElementById('car-form');
+    const brandSelect = document.getElementById('brand-select');
+
+    // Функции для ручного открытия и закрытия окна
+    function showCarModal() {
+        carModal.style.display = 'block';
+        setTimeout(() => carModal.classList.add('show'), 10);
+    }
+
+    function hideCarModal() {
+        carModal.classList.remove('show');
+        setTimeout(() => carModal.style.display = 'none', 300);
+    }
+
+    // Закрытие окна по клику на крестик
+    document.querySelector('#car-modal .btn-close').addEventListener('click', hideCarModal);
+
+    // Функция загрузки марок с сервера
+    async function loadBrands() {
+        try {
+            const res = await fetch('/api/brands/');
+            const brands = await res.json();
+            brandSelect.innerHTML = brands.map(b => 
+                `<option value="${b.id}">${b.name}</option>`
+            ).join('');
+        } catch (err) {
+            console.error('Ошибка загрузки марок', err);
+        }
+    }
+
+    // Открытие окна при нажатии "+ Добавить автомобиль"
+    document.getElementById('btn-add-car').addEventListener('click', () => {
+        carForm.reset();
+        document.getElementById('car-id').value = '';
+        document.getElementById('modal-title').innerText = 'Добавить авто';
+        loadBrands();
+        showCarModal();
+    });
+
+    // Сохранение данных (POST/PUT запрос)
+    carForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const id = document.getElementById('car-id').value;
+        const url = id ? `/api/cars/${id}/` : '/api/cars/';
+        const method = id ? 'PUT' : 'POST';
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        const data = {
+            brand_id: brandSelect.value,
+            model_name: document.getElementById('model-name').value,
+            year: document.getElementById('car-year').value,
+            price: document.getElementById('car-price').value,
+            image_url: document.getElementById('car-image').value
+        };
+
+        try {
+            const res = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify(data)
+            });
+            
+            if (!res.ok) throw new Error();
+            const savedCar = await res.json(); 
+            hideCarModal();
+            
+            if (id && rowToEdit) {
+                // Плавно переписываем только одну строку
+                rowToEdit.innerHTML = getCarRowHTML(savedCar);
+                showToast('Автомобиль успешно изменен!');
+            } else {
+                // При добавлении перерисовываем каталог
+                loadCars(searchInput.value); 
+                showToast('Автомобиль добавлен!');
+            }
+        } catch (err) {
+            // Красное уведомление об ошибке
+            showToast('Ошибка при сохранении. Проверьте данные.', true);
+        }
+    });
+
+   // --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ДЛЯ ОКНА УДАЛЕНИЯ ---
+    const deleteModal = document.getElementById('delete-modal');
+    let carIdToDelete = null;
+    let rowToDelete = null;
+    let rowToEdit = null;
+
+    const hideDeleteModal = () => {
+        deleteModal.classList.remove('show');
+        setTimeout(() => deleteModal.style.display = 'none', 300);
+    };
+    document.getElementById('btn-cancel-delete').addEventListener('click', hideDeleteModal);
+
+    // 6. ИЗМЕНЕНИЕ И УДАЛЕНИЕ МАШИН
+    tableBody.addEventListener('click', async (e) => {
+        
+        // --- ЕСЛИ НАЖАЛИ "УДАЛИТЬ" ---
+        if (e.target.classList.contains('btn-delete')) {
+            carIdToDelete = e.target.getAttribute('data-id');
+            rowToDelete = e.target.closest('tr'); // Запоминаем конкретную строку
+            
+            // Открываем твое новое окно
+            deleteModal.style.display = 'block';
+            setTimeout(() => deleteModal.classList.add('show'), 10);
+        }
+        
+        // --- ЕСЛИ НАЖАЛИ "ИЗМЕНИТЬ" ---
+        if (e.target.classList.contains('btn-edit')) {
+            rowToEdit = e.target.closest('tr');
+            const id = e.target.getAttribute('data-id');
+            try {
+                const [carRes, brandsRes] = await Promise.all([
+                    fetch(`/api/cars/${id}/`),
+                    fetch('/api/brands/')
+                ]);
+                const car = await carRes.json();
+                const brands = await brandsRes.json();
+                
+                const brandSelect = document.getElementById('brand-select');
+                brandSelect.innerHTML = brands.map(b => 
+                    `<option value="${b.id}" ${b.id === car.brand.id ? 'selected' : ''}>${b.name}</option>`
+                ).join('');
+                
+                document.getElementById('car-id').value = car.id;
+                document.getElementById('model-name').value = car.model_name;
+                document.getElementById('car-year').value = car.year;
+                document.getElementById('car-price').value = car.price;
+                document.getElementById('car-image').value = car.image_url || '';
+                document.getElementById('modal-title').innerText = 'Изменить авто';
+                
+                const carModal = document.getElementById('car-modal');
+                carModal.style.display = 'block';
+                setTimeout(() => carModal.classList.add('show'), 10);
+            } catch (err) {
+                console.error('Ошибка загрузки', err);
+            }
+        }
+    });
+
+    // --- ПОДТВЕРЖДЕНИЕ УДАЛЕНИЯ ИЗ НОВОГО ОКНА ---
+    document.getElementById('btn-confirm-delete').addEventListener('click', async () => {
+        if (!carIdToDelete) return;
+        const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        try {
+            const res = await fetch(`/api/cars/${carIdToDelete}/`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrf }
+            });
+            if (!res.ok) throw new Error();
+            
+            rowToDelete.remove();
+            hideDeleteModal();
+        } catch (err) {
+            alert('Ошибка при удалении');
+        }
+    });
+</script>
+
+{% endblock %}

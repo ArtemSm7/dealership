@@ -1,0 +1,361 @@
+{% extends 'main/base.html' %}
+
+{% block content %}
+<div class="page-header d-print-none mb-4">
+    <h2 class="page-title">Управление заявками</h2>
+</div>
+
+<div class="card mb-3 d-print-none">
+    <div class="card-body row g-2">
+        <div class="col-md-5">
+            <select id="status-filter" class="form-select filter-trigger">
+                <option value="">Все статусы</option>
+                <option value="new">Новые</option>
+                <option value="process">В обработке</option>
+                <option value="done">Завершенные</option>
+                <option value="canceled">Отмененные</option>
+            </select>
+        </div>
+        <div class="col-md-5">
+            <select id="brand-filter" class="form-select filter-trigger">
+                <option value="">Все марки</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+            <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Клиент</th>
+                    <th>Телефон</th>
+                    <th>Автомобиль</th>
+                    <th>Статус</th>
+                    <th>Действие</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                    <!-- Подключение строки таблицы как компонента -->
+                    {% include 'main/includes/order_row.html' with order=order %}
+                {% empty %}
+                    <tr><td colspan="6" class="text-center">Заявок пока нет.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Модальное окно подтверждения удаления -->
+<div class="modal modal-blur fade" id="modal-delete" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-body">
+                <div class="modal-title">Вы уверены?</div>
+                <div>Вы действительно хотите удалить эту заявку? Это действие нельзя отменить.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" id="confirm-delete-btn">Да, удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно истории заявки -->
+<div class="modal modal-blur fade" id="modal-history" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">История изменения статусов</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="list-group list-group-flush" id="history-list">
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% csrf_token %}
+
+<script>
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const tableBody = document.querySelector('.card-table tbody');
+
+    // --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ И ФУНКЦИИ ОКНА УДАЛЕНИЯ ---
+    const modalDelete = document.getElementById('modal-delete');
+    let orderIdToDelete = null;
+
+    function hideModal() {
+        if (modalDelete) {
+            modalDelete.classList.remove('show');
+            setTimeout(() => { modalDelete.style.display = 'none'; }, 300);
+        }
+    }
+
+    // Закрытие окна по кнопке "Отмена"
+    document.querySelectorAll('[data-bs-dismiss="modal"]').forEach(btn => {
+        btn.addEventListener('click', hideModal);
+    });
+
+    // Генератор одной строки таблицы заявок
+    function getOrderRowHTML(order) {
+        const dateObj = new Date(order.created_at);
+        const formattedDate = dateObj.toLocaleDateString('ru-RU') + 
+            ' ' + dateObj.toLocaleTimeString('ru-RU', {hour: '2-digit', minute:'2-digit'});
+        
+        return `
+        <tr id="order-row-${order.id}">
+            <td>${formattedDate}</td>
+            <td>${order.client_name}</td>
+            <td>${order.client_phone}</td>
+            <td>${order.car_details.brand.name} ${order.car_details.model_name}</td>
+            <td>
+                <select class="form-select status-select" data-order-id="${order.id}" data-original-value="${order.status}">
+                    <option value="new" ${order.status === 'new' ? 'selected' : ''}>Новая</option>
+                    <option value="process" ${order.status === 'process' ? 'selected' : ''}>В обработке</option>
+                    <option value="done" ${order.status === 'done' ? 'selected' : ''}>Завершена</option>
+                    <option value="canceled" ${order.status === 'canceled' ? 'selected' : ''}>Отменена</option>
+                </select>
+            </td>
+            <td>
+                <div class="d-flex gap-2 flex-nowrap">
+                    <!-- Кнопка Истории (иконка "Часы/История") -->
+                    <button class="btn btn-icon btn-outline-info btn-sm history-btn" data-order-id="${order.id}" title="История">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-history" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                            <path d="M12 8l0 4l2 2"></path>
+                            <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"></path>
+                        </svg>
+                    </button>
+                    <!-- Кнопка Удаления (иконка "Корзина") -->
+                    <button class="btn btn-icon btn-outline-danger btn-sm delete-btn" data-order-id="${order.id}" title="Удалить">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-trash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                            <path d="M4 7l16 0"></path>
+                            <path d="M10 11l0 6"></path>
+                            <path d="M14 11l0 6"></path>
+                            <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"></path>
+                            <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"></path>
+                        </svg>
+                    </button>
+                </div>
+            </td>
+        </tr>
+        `;
+    }
+
+    // Универсальная подгрузка марок в фильтр из БД
+    async function loadBrandsForFilter() {
+        try {
+            const response = await fetch('/api/brands/');
+            const brands = await response.json();
+            const brandFilter = document.getElementById('brand-filter');
+            
+            brands.forEach(b => {
+                brandFilter.insertAdjacentHTML('beforeend', `<option value="${b.id}">${b.name}</option>`);
+            });
+        } catch (err) {
+            console.error('Ошибка загрузки марок', err);
+        }
+    }
+
+    // Загрузка заявок с учетом фильтров
+    async function loadFilteredOrders() {
+        const statusValue = document.getElementById('status-filter').value;
+        const brandValue = document.getElementById('brand-filter').value;
+        let url = '/api/orders/?';
+        if (statusValue) url += `status=${statusValue}&`;
+        if (brandValue) url += `car__brand=${brandValue}`;
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Network error');
+            const orders = await response.json();
+            
+            tableBody.innerHTML = ''; 
+            
+            if (orders.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6" class="text-center">Заявок пока нет.</td></tr>';
+            } else {
+                orders.forEach(order => {
+                    tableBody.insertAdjacentHTML('beforeend', getOrderRowHTML(order));
+                });
+            }
+            
+            attachRowEventListeners();
+        } catch (error) {
+            console.error(error);
+            if (typeof showToast === 'function') showToast('Ошибка загрузки данных', true);
+        }
+    }
+    
+    // Привязка слушателей к фильтрам
+    document.querySelectorAll('.filter-trigger').forEach(select => {
+        select.addEventListener('change', loadFilteredOrders);
+    });
+
+    function attachRowEventListeners() {
+        // 1. ИЗМЕНЕНИЕ СТАТУСА (Без перезагрузки)
+        document.querySelectorAll('.status-select').forEach(select => {
+            const newSelect = select.cloneNode(true);
+            select.parentNode.replaceChild(newSelect, select);
+            
+            newSelect.addEventListener('change', async function() {
+                const orderId = this.getAttribute('data-order-id');
+                const newStatus = this.value;
+
+                try {
+                    const response = await fetch(`/api/orders/${orderId}/`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({ status: newStatus })
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        let errorMsg = 'Произошла ошибка';
+                        if (data.status) {
+                             errorMsg = data.status[0]; 
+                        } else if (data.non_field_errors) {
+                             errorMsg = data.non_field_errors[0]; 
+                        }
+                        if (typeof showToast === 'function') showToast(errorMsg, true); 
+
+                        const originalStatus = this.getAttribute('data-original-value') || 'new';
+                        this.value = originalStatus;
+                        return;
+                    }
+                    
+                    this.setAttribute('data-original-value', newStatus);
+                    if (typeof showToast === 'function') showToast('Статус заявки успешно обновлен!');
+
+                } catch (err) {
+                    if (typeof showToast === 'function') showToast('Ошибка соединения с сервером', true);
+                }
+            });
+        });
+
+        // 2. УДАЛЕНИЕ ЗАЯВКИ
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+            
+            newBtn.addEventListener('click', function() {
+                orderIdToDelete = this.getAttribute('data-order-id');
+                // Плавно открываем модальное окно
+                if (modalDelete) {
+                    modalDelete.style.display = 'block';
+                    setTimeout(() => { modalDelete.classList.add('show'); }, 10);
+                }
+            });
+        });
+
+        // 3. ФАКТИЧЕСКОЕ УДАЛЕНИЕ (При клике "Да, удалить" в окне)
+        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+        if (confirmDeleteBtn) {
+            const newConfirmBtn = confirmDeleteBtn.cloneNode(true);
+            confirmDeleteBtn.parentNode.replaceChild(newConfirmBtn, confirmDeleteBtn);
+            
+            newConfirmBtn.addEventListener('click', async function() {
+                if (!orderIdToDelete) return;
+
+                try {
+                    const response = await fetch(`/api/orders/${orderIdToDelete}/`, {
+                        method: 'DELETE',
+                        headers: {'X-CSRFToken': csrfToken}
+                    });
+
+                    if (response.ok || response.status === 204) {
+                        const rowToRemove = document.getElementById('order-row-' + orderIdToDelete);
+                        if (rowToRemove) rowToRemove.remove();
+                        
+                        hideModal();
+                        if (typeof showToast === 'function') showToast('Заявка успешно удалена!');
+                    } else {
+                        const errorData = await response.json();
+                        let errorMsg = 'Ошибка при удалении';
+                        if (errorData.non_field_errors) {
+                            errorMsg = errorData.non_field_errors[0];
+                        } else if (errorData.detail) {
+                            errorMsg = errorData.detail;
+                        }
+
+                        hideModal();
+                        if (typeof showToast === 'function') showToast(errorMsg, true);
+                    } 
+                } catch (err) {
+                    hideModal();
+                    if (typeof showToast === 'function') showToast('Ошибка соединения с сервером', true);
+                }
+            });
+        }
+
+        // 4. ПРОСМОТР ИСТОРИИ
+        const modalHistory = document.getElementById('modal-history');
+        const historyList = document.getElementById('history-list');
+
+        function hideHistoryModal() {
+            modalHistory.classList.remove('show');
+            setTimeout(() => { modalHistory.style.display = 'none'; }, 300);
+        }
+        
+        document.querySelectorAll('[data-bs-dismiss="modal"]').forEach(btn => {
+            btn.addEventListener('click', function() {
+                if (this.closest('#modal-history')) hideHistoryModal();
+            });
+        });
+
+        document.querySelectorAll('.history-btn').forEach(btn => {
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+            
+            newBtn.addEventListener('click', async function() {
+                const orderId = this.getAttribute('data-order-id');
+                
+                try {
+                    // Запрашиваем заявку целиком (в ней уже есть вложенный список событий)
+                    const response = await fetch(`/api/orders/${orderId}/`);
+                    const orderData = await response.json();
+                    
+                    historyList.innerHTML = '';
+                    if (orderData.events && orderData.events.length > 0) {
+                        orderData.events.forEach(event => {
+                            const date = new Date(event.created_at).toLocaleString('ru-RU');
+                            const initiator = event.initiator_name || 'Система';
+                            historyList.innerHTML += `
+                                <li class="list-group-item">
+                                    <strong>${date}</strong><br>
+                                    Переход: <em>${event.old_status}</em> ➔ <strong>${event.new_status}</strong><br>
+                                    <small class="text-muted">Инициатор: ${initiator}</small>
+                                </li>`;
+                        });
+                    } else {
+                        historyList.innerHTML = '<li class="list-group-item text-center">История пуста</li>';
+                    }
+                    
+                    modalHistory.style.display = 'block';
+                    setTimeout(() => { modalHistory.classList.add('show'); }, 10);
+                } catch (err) {
+                    showToast('Ошибка загрузки истории', true);
+                }
+            });
+        });
+    } 
+    
+    loadBrandsForFilter();
+    attachRowEventListeners();
+</script>
+{% endblock %}

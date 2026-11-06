@@ -1,0 +1,36 @@
+{% extends 'main/base.html' %}
+
+{% block content %}
+<div class="page-body">
+    <div class="container-tight py-4" style="max-width: 400px; margin: 0 auto;">
+        <div class="card card-md">
+            <div class="card-body">
+                <h2 class="h2 text-center mb-4">Вход для сотрудников</h2>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Имя пользователя</label>
+                        <input type="text" name="username" class="form-control" required autofocus>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Пароль</label>
+                        <input type="password" name="password" class="form-control" required>
+                    </div>
+                    
+                    {% if form.errors %}
+                    <div class="text-danger small mb-3">
+                        Неверное имя пользователя или пароль.
+                    </div>
+                    {% endif %}
+                    
+                    <div class="form-footer">
+                        <button type="submit" class="btn btn-primary w-100">
+                            Войти в систему
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

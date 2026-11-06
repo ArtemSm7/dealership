@@ -1,0 +1,49 @@
+<tr id="order-row-{{ order.id }}">
+    <td>{{ order.created_at|date:"d.m.Y H:i" }}</td>
+    <td>{{ order.client_name }}</td>
+    <td>{{ order.client_phone }}</td>
+    <td>{{ order.car.brand.name }} {{ order.car.model_name }}</td>
+    <td>
+        <!-- Выпадающий список -->
+        <select class="form-select status-select" 
+                data-order-id="{{ order.id }}">
+            <option value="new" 
+                {% if order.status == 'new' %}selected{% endif %}>
+                Новая
+            </option>
+            <option value="process" 
+                {% if order.status == 'process' %}selected{% endif %}>
+                В обработке
+            </option>
+            <option value="done" 
+                {% if order.status == 'done' %}selected{% endif %}>
+                Завершена
+            </option>
+            <option value="canceled" 
+                {% if order.status == 'canceled' %}selected{% endif %}>
+                Отменена
+            </option>
+        </select>
+    </td>
+    <td>
+        <div class="d-flex gap-2 flex-nowrap">
+            <button class="btn btn-icon btn-outline-info btn-sm history-btn" data-order-id="{{ order.id }}" title="История">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-history" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                    <path d="M12 8l0 4l2 2"></path>
+                    <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"></path>
+                </svg>
+            </button>
+            <button class="btn btn-icon btn-outline-danger btn-sm delete-btn" data-order-id="{{ order.id }}" title="Удалить">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-trash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                    <path d="M4 7l16 0"></path>
+                    <path d="M10 11l0 6"></path>
+                    <path d="M14 11l0 6"></path>
+                    <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"></path>
+                    <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"></path>
+                </svg>
+            </button>
+        </div>
+    </td>
+</tr>
